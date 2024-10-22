@@ -1,5 +1,5 @@
 % Load file and handle missing fields in HV data (STEP 1)
-file_name = 'subset_23.mat';  % Change this filename when using a different file
+file_name = 'subset_27.mat';  % Change this filename when using a different file
 loaded_data = load(file_name);
 
 % Check what variables are loaded
@@ -111,7 +111,7 @@ for i = 1:num_entries
     rel_vel_threshold = 5;   % Example safety threshold for relative velocity (m/s)
     
     reward_function = @(s, aH)  -((s(1) + aH)^2 + (s(2) + aH)^2) ...  % Penalize large deviations in position/velocity
-                                - ((s(1) < rel_pos_threshold) * 100) ...  % High penalty if relative position is below safe threshold
+                                - ((s(1) < rel_pos_threshold) * 10) ...  % High penalty if relative position is below safe threshold
                                
                              
 
@@ -164,8 +164,8 @@ for i = 1:num_entries
     for t = M:-1:1
        for s = 1:numStates
               [s1, s2] = ind2sub([length(s1_values), length(s2_values)], s); % Convert index to state variables
-            current_s1 = s1_values(s1);
-            current_s2 = s2_values(s2);
+              current_s1 = s1_values(s1);
+              current_s2 = s2_values(s2);
         
         % Use MV data directly from the dataset for this entry
         MV_x_t = MV_x(i);   % Get MV position at time t
@@ -197,6 +197,39 @@ for i = 1:num_entries
   end
 
 end
+
+% Initialize policy table
+policy_table = zeros(numStates, K);  % Rows correspond to states, columns to time steps
+
+for k = 1:K
+    for s = 1:numStates
+        % Find the action with the maximum Q-value for this state and time step
+        [~, optimal_action_idx] = max(Q_H(s, :, k));
+        policy_table(s, k) = actions_HV(optimal_action_idx);  % Store the optimal action
+    end
+end
+
+% Save policy table
+save('policy_table.mat', 'policy_table'); 
+
+s1_min = -150; s1_max = 150; delta_s1 = 2;
+s2_min = -20;  s2_max = 20;  delta_s2 = 2;
+
+% Define state space for s1 (relative distance) and s2 (relative velocity)
+s1_values = s1_min:delta_s1:s1_max;
+s2_values = s2_min:delta_s2:s2_max; 
+
+% Create a grid of all possible states
+[state_s1, state_s2] = meshgrid(s1_values, s2_values);
+
+% Combine the state parameters into one array (for simplicity, it's reshaped)
+state_matrix = [state_s1(:), state_s2(:)];
+
+% Now each state has a corresponding action in the policy_table (row-wise mapping)
+% policy_table should be mapped to state_matrix
+policy_table_with_states = [state_matrix, policy_table];  % Combine states with the actions
+
+save('policy_table_with_states.mat', 'policy_table_with_states');
 
 % Summary of missing/incompatible entries
 disp(['Total entries with missing HV data: ', num2str(length(missing_HV))]);
